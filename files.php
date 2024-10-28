@@ -1,122 +1,46 @@
 <?php
 // Load API key from .env file
-$env = parse_ini_file(__DIR__ . '/.env');
-$apiKey = $env['API_KEY'] ?? null;
+$envContent = file('.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+$apiKey = '';
+foreach ($envContent as $line) {
+    if (strpos(trim($line), 'API_KEY=') === 0) {
+        $apiKey = trim(explode('=', $line, 2)[1]);
+        break;
+    }
+}
 
-// Check API key for every request
-if ($_SERVER['HTTP_X_API_KEY'] !== $apiKey) {
+// Check if API key is provided and valid
+$headers = getallheaders();
+if (!isset($headers['Authorization']) || $headers['Authorization'] !== "Bearer $apiKey") {
     http_response_code(403);
     echo json_encode(['error' => 'Forbidden: Invalid API key']);
     exit;
 }
 
-// POST request to save files
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json');
-    
-    $input = json_decode(file_get_contents('php://input'), true);
+// Verify JSON input
+$input = file_get_contents('php://input');
+$data = json_decode($input, true);
 
-    if (empty($input) || !isset($input['files']) || !is_array($input['files'])) {
+if (!isset($data['files']) || !is_array($data['files'])) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid input format']);
+    exit;
+}
+
+foreach ($data['files'] as $file) {
+    if (!isset($file['name']) || !isset($file['content'])) {
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid input format']);
+        echo json_encode(['error' => 'Invalid file structure']);
         exit;
     }
 
-    $response = [];
-    foreach ($input['files'] as $file) {
-        if (isset($file['name'], $file['content'])) {
-            // Ensure the file path is within the current directory
-            $path = realpath(__DIR__) . DIRECTORY_SEPARATOR . basename($file['name']);
-            if (strpos(realpath($path), realpath(__DIR__)) !== 0) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Invalid file path']);
-                exit;
-            }
+    // Ensure filename does not attempt directory traversal
+    $filePath = __DIR__ . '/' . basename($file['name']);
 
-            // Save file content
-            file_put_contents($path, $file['content']);
-            $response[] = ['file' => $file['name'], 'status' => 'saved'];
-        } else {
-            $response[] = ['file' => $file['name'] ?? '', 'status' => 'failed', 'error' => 'Invalid file format'];
-        }
-    }
-
-    echo json_encode($response);
-    exit;
+    // Save file content to the local file system
+    file_put_contents($filePath, $file['content']);
 }
 
-// GET request to display OpenAPI schema
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    header('Content-Type: application/json');
-
-    $schema = [
-        'openapi' => '3.1.0',
-        'info' => [
-            'title' => 'File Upload API',
-            'version' => '1.0.0',
-            'description' => 'API for uploading files with API key protection.'
-        ],
-        'servers' => [
-            ['url' => ($_SERVER['HTTPS'] ? 'https://' : 'http://') . $_SERVER['HTTP_HOST']]
-        ],
-        'paths' => [
-            '/files' => [
-                'post' => [
-                    'summary' => 'Upload files',
-                    'description' => 'Uploads files to the server in specified relative paths.',
-                    'requestBody' => [
-                        'required' => true,
-                        'content' => [
-                            'application/json' => [
-                                'schema' => [
-                                    'type' => 'object',
-                                    'properties' => [
-                                        'files' => [
-                                            'type' => 'array',
-                                            'items' => [
-                                                'type' => 'object',
-                                                'properties' => [
-                                                    'name' => ['type' => 'string'],
-                                                    'content' => ['type' => 'string']
-                                                ],
-                                                'required' => ['name', 'content']
-                                            ]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ],
-                    'responses' => [
-                        '200' => [
-                            'description' => 'Files uploaded successfully.',
-                            'content' => [
-                                'application/json' => [
-                                    'schema' => [
-                                        'type' => 'object',
-                                        'properties' => [
-                                            'file' => ['type' => 'string'],
-                                            'status' => ['type' => 'string']
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ],
-                        '403' => [
-                            'description' => 'Forbidden: Invalid API key'
-                        ],
-                        '400' => [
-                            'description' => 'Invalid input format'
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ];
-
-    echo json_encode($schema);
-    exit;
-}
-
-http_response_code(405);
-echo json_encode(['error' => 'Method not allowed']);
+http_response_code(200);
+echo json_encode(['message' => 'Files saved successfully']);
+?>
