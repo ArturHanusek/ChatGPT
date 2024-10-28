@@ -1,78 +1,136 @@
 <?php
+// Load .env file for API key
+$env = parse_ini_file('.env');
+$API_KEY = $env['API_KEY'] ?? '';
 
-// Load the entire .env file content as the API key
-$envFilePath = __DIR__ . '/.env';
-if (!file_exists($envFilePath)) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => 'Configuration file not found.']);
-    exit;
+header('Content-Type: application/json');
+
+function verifyApiKey($key) {
+    global $API_KEY;
+    return hash_equals($API_KEY, $key);
 }
 
-define('API_KEY', trim(file_get_contents($envFilePath)));
-
-// Set the directory where files should be saved
-define('BASE_DIR', realpath(__DIR__ . '/files/') . DIRECTORY_SEPARATOR);
-
-// Check API key
-function validateApiKey($providedKey) {
-    return $providedKey === API_KEY;
-}
-
-// Save file function with directory restriction
 function saveFile($filePath, $content) {
-    $fullPath = realpath(BASE_DIR . $filePath);
+    // Ensure path doesn't climb directory tree
+    $realPath = realpath(__DIR__) . '/' . ltrim($filePath, '/');
+    if (strpos(realpath($realPath), realpath(__DIR__)) !== 0) {
+        throw new Exception("Invalid file path.");
+    }
     
-    // Prevent saving files outside the BASE_DIR
-    if ($fullPath === false || strpos($fullPath, BASE_DIR) !== 0) {
-        return false;
+    // Create directory if not exists
+    $dir = dirname($realPath);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0777, true);
     }
-
-    $directory = dirname($fullPath);
-
-    // Create directory if it doesn't exist
-    if (!is_dir($directory)) {
-        mkdir($directory, 0777, true);
-    }
-
-    // Save file content
-    return file_put_contents($fullPath, $content) !== false;
+    
+    file_put_contents($realPath, $content);
 }
 
-// Handle incoming request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Check for API key in the headers
+    // Validate API key
     $headers = getallheaders();
-    if (!isset($headers['Authorization']) || !validateApiKey(str_replace('Bearer ', '', $headers['Authorization']))) {
+    if (empty($headers['Authorization']) || !verifyApiKey(str_replace('Bearer ', '', $headers['Authorization']))) {
         http_response_code(401);
-        echo json_encode(['status' => 'error', 'message' => 'Invalid API key.']);
+        echo json_encode(['error' => 'Unauthorized']);
         exit;
     }
 
-    // Get JSON data from the request body
-    $inputData = json_decode(file_get_contents('php://input'), true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
+    // Decode JSON body
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['files']) || !is_array($data['files'])) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Invalid JSON.']);
+        echo json_encode(['error' => 'Invalid JSON format']);
         exit;
     }
 
-    $errors = [];
-    foreach ($inputData as $file) {
-        if (isset($file['name'], $file['content'])) {
-            if (!saveFile($file['name'], $file['content'])) {
-                $errors[] = $file['name'];
+    // Save files
+    try {
+        foreach ($data['files'] as $file) {
+            if (!isset($file['name']) || !isset($file['content'])) {
+                throw new Exception("Each file requires a 'name' and 'content' field.");
             }
-        } else {
-            $errors[] = $file['name'] ?? 'unknown';
+            saveFile($file['name'], $file['content']);
         }
+        echo json_encode(['status' => 'Files saved successfully']);
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode(['error' => $e->getMessage()]);
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Display OpenAPI schema
+    $openApiSchema = [
+        'openapi' => '3.1.0',
+        'info' => [
+            'title' => 'File Storage API',
+            'version' => '1.0.0',
+            'description' => 'API for securely saving files',
+        ],
+        'paths' => [
+            '/' => [
+                'post' => [
+                    'summary' => 'Save files',
+                    'description' => 'Accepts file data and saves it locally.',
+                    'parameters' => [
+                        [
+                            'name' => 'Authorization',
+                            'in' => 'header',
+                            'required' => true,
+                            'schema' => [
+                                'type' => 'string',
+                            ],
+                            'description' => 'Bearer token for API access',
+                        ]
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'content' => [
+                            'application/json' => [
+                                'schema' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'files' => [
+                                            'type' => 'array',
+                                            'items' => [
+                                                'type' => 'object',
+                                                'properties' => [
+                                                    'name' => ['type' => 'string'],
+                                                    'content' => ['type' => 'string'],
+                                                ],
+                                                'required' => ['name', 'content'],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'responses' => [
+                        '200' => [
+                            'description' => 'Files saved successfully',
+                        ],
+                        '400' => [
+                            'description' => 'Invalid request data',
+                        ],
+                        '401' => [
+                            'description' => 'Unauthorized',
+                        ],
+                    ],
+                ],
+                'get' => [
+                    'summary' => 'OpenAPI schema',
+                    'description' => 'Returns the OpenAPI schema for the API.',
+                    'responses' => [
+                        '200' => [
+                            'description' => 'OpenAPI schema in JSON format',
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ];
 
-    if (empty($errors)) {
-        echo json_encode(['status' => 'success', 'message' => 'All files saved successfully.']);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Some files could not be saved.', 'errors' => $errors]);
-    }
+    echo json_encode($openApiSchema, JSON_PRETTY_PRINT);
 } else {
     http_response_code(405);
-    echo json_encode(['status' => 'error', 'message' => 'Method not allowed.']);
+    echo json_encode(['error' => 'Method not allowed']);
 }
