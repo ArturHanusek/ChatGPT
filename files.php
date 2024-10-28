@@ -1,17 +1,17 @@
 <?php
-require 'vendor/autoload.php';
 
-use Dotenv\Dotenv;
+// Load the entire .env file content as the API key
+$envFilePath = __DIR__ . '/.env';
+if (!file_exists($envFilePath)) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'Configuration file not found.']);
+    exit;
+}
 
-// Load .env file
-$dotenv = Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+define('API_KEY', trim(file_get_contents($envFilePath)));
 
 // Set the directory where files should be saved
 define('BASE_DIR', realpath(__DIR__ . '/files/') . DIRECTORY_SEPARATOR);
-
-// Retrieve API key from .env
-define('API_KEY', $_ENV['API_KEY'] ?? '');
 
 // Check API key
 function validateApiKey($providedKey) {
@@ -23,7 +23,7 @@ function saveFile($filePath, $content) {
     $fullPath = realpath(BASE_DIR . $filePath);
     
     // Prevent saving files outside the BASE_DIR
-    if (strpos($fullPath, BASE_DIR) !== 0) {
+    if ($fullPath === false || strpos($fullPath, BASE_DIR) !== 0) {
         return false;
     }
 
