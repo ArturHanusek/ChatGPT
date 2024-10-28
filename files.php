@@ -1,18 +1,32 @@
 <?php
-// Define your API key
-define('API_KEY', 'YOUR_API_KEY_HERE');
+require 'vendor/autoload.php';
+
+use Dotenv\Dotenv;
+
+// Load .env file
+$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
 // Set the directory where files should be saved
-define('BASE_DIR', __DIR__ . '/files/');
+define('BASE_DIR', realpath(__DIR__ . '/files/') . DIRECTORY_SEPARATOR);
+
+// Retrieve API key from .env
+define('API_KEY', $_ENV['API_KEY'] ?? '');
 
 // Check API key
 function validateApiKey($providedKey) {
     return $providedKey === API_KEY;
 }
 
-// Save file function
+// Save file function with directory restriction
 function saveFile($filePath, $content) {
-    $fullPath = BASE_DIR . $filePath;
+    $fullPath = realpath(BASE_DIR . $filePath);
+    
+    // Prevent saving files outside the BASE_DIR
+    if (strpos($fullPath, BASE_DIR) !== 0) {
+        return false;
+    }
+
     $directory = dirname($fullPath);
 
     // Create directory if it doesn't exist
