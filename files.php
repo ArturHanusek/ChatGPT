@@ -1,17 +1,18 @@
 <?php
 // files.php
 
-// Load API key from .env.dist file
+// Load API key from .env file
 $dotenvPath = __DIR__ . '/.env';
 if (!file_exists($dotenvPath)) {
     http_response_code(500);
-    echo json_encode(['error' => 'Server configuration error.']);
+    echo json_encode(['error' => 'Server configuration error: Missing .env file.']);
     exit;
 }
-$envFile = file($dotenvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-$apiKey = implode("\n", $envFile);
 
-// Check API key in request header
+// Read the API key from the .env file
+$apiKey = trim(file_get_contents($dotenvPath));
+
+// Check API key in the Authorization header
 $headers = getallheaders();
 if (!isset($headers['Authorization']) || $headers['Authorization'] !== 'Bearer ' . $apiKey) {
     http_response_code(403);
@@ -20,7 +21,7 @@ if (!isset($headers['Authorization']) || $headers['Authorization'] !== 'Bearer '
 }
 
 // Validate request content-type
-if ($_SERVER['CONTENT_TYPE'] !== 'application/json') {
+if (!isset($_SERVER['CONTENT_TYPE']) || $_SERVER['CONTENT_TYPE'] !== 'application/json') {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid content type']);
     exit;
