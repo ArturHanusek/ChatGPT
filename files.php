@@ -2,7 +2,7 @@
 // files.php
 
 // Load API key from .env.dist file
-$dotenvPath = __DIR__ . '/.env.dist';
+$dotenvPath = __DIR__ . '/.env';
 if (!file_exists($dotenvPath)) {
     http_response_code(500);
     echo json_encode(['error' => 'Server configuration error.']);
