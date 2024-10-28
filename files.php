@@ -1,46 +1,58 @@
 <?php
-// Load API key from .env file
-$envContent = file('.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-$apiKey = '';
-foreach ($envContent as $line) {
-    if (strpos(trim($line), 'API_KEY=') === 0) {
-        $apiKey = trim(explode('=', $line, 2)[1]);
-        break;
-    }
-}
+// files.php
 
-// Check if API key is provided and valid
+// Load API key from .env.dist file
+$dotenvPath = __DIR__ . '/.env.dist';
+if (!file_exists($dotenvPath)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Server configuration error.']);
+    exit;
+}
+$envFile = file($dotenvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+$apiKey = implode("\n", $envFile);
+
+// Check API key in request header
 $headers = getallheaders();
-if (!isset($headers['Authorization']) || $headers['Authorization'] !== "Bearer $apiKey") {
+if (!isset($headers['Authorization']) || $headers['Authorization'] !== 'Bearer ' . $apiKey) {
     http_response_code(403);
     echo json_encode(['error' => 'Forbidden: Invalid API key']);
     exit;
 }
 
-// Verify JSON input
-$input = file_get_contents('php://input');
-$data = json_decode($input, true);
+// Validate request content-type
+if ($_SERVER['CONTENT_TYPE'] !== 'application/json') {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid content type']);
+    exit;
+}
 
+// Retrieve and decode JSON body
+$data = json_decode(file_get_contents('php://input'), true);
 if (!isset($data['files']) || !is_array($data['files'])) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid input format']);
     exit;
 }
 
+// Save each file to its specified relative location
 foreach ($data['files'] as $file) {
     if (!isset($file['name']) || !isset($file['content'])) {
         http_response_code(400);
-        echo json_encode(['error' => 'Invalid file structure']);
+        echo json_encode(['error' => 'Invalid input format']);
         exit;
     }
 
-    // Ensure filename does not attempt directory traversal
-    $filePath = __DIR__ . '/' . basename($file['name']);
+    // Ensure filename does not navigate up the directory structure
+    $filename = basename($file['name']);
+    $filePath = __DIR__ . '/' . $filename;
 
-    // Save file content to the local file system
-    file_put_contents($filePath, $file['content']);
+    // Save file content
+    if (file_put_contents($filePath, $file['content']) === false) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save file: ' . $filename]);
+        exit;
+    }
 }
 
 http_response_code(200);
 echo json_encode(['message' => 'Files saved successfully']);
-?>
