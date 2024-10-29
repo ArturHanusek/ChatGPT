@@ -22,41 +22,45 @@ if (!isset($headers['Authorization']) || $headers['Authorization'] !== 'Bearer '
     exit;
 }
 
-// Handle GET request for file retrieval
+// Handle GET request to list files and folders in a specified folder
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    if (!isset($_GET['file'])) {
+    if (!isset($_GET['folder'])) {
         http_response_code(400);
-        echo json_encode(['error' => 'Missing file parameter']);
+        echo json_encode(['error' => 'Missing or invalid folder parameter']);
         exit;
     }
 
-    // Sanitize the file parameter to prevent directory traversal
-    $filename = basename($_GET['file']);
-    $filePath = __DIR__ . '/' . $filename;
-
-    // Check if the file exists and is readable
-    if (!file_exists($filePath) || !is_readable($filePath)) {
+    $folderPath = realpath(__DIR__ . '/' . $_GET['folder']);
+    if (!$folderPath || !is_dir($folderPath)) {
         http_response_code(404);
-        echo json_encode(['error' => 'File not found']);
+        echo json_encode(['error' => 'Folder not found']);
         exit;
     }
 
-    // Read and return the file content
-    $fileContent = file_get_contents($filePath);
-    echo json_encode(['file' => $filename, 'content' => $fileContent]);
+    $contents = [];
+    foreach (scandir($folderPath) as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $contents[] = [
+            'name' => $item,
+            'type' => is_dir($folderPath . '/' . $item) ? 'folder' : 'file'
+        ];
+    }
+
+    echo json_encode([
+        'folder' => $_GET['folder'],
+        'contents' => $contents
+    ]);
     exit;
 }
 
 // Handle POST request for file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate request content-type
     if (!isset($_SERVER['CONTENT_TYPE']) || $_SERVER['CONTENT_TYPE'] !== 'application/json') {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid content type']);
         exit;
     }
 
-    // Retrieve and decode JSON body
     $data = json_decode(file_get_contents('php://input'), true);
     if (!isset($data['files']) || !is_array($data['files'])) {
         http_response_code(400);
@@ -64,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Save each file to its specified relative location
     foreach ($data['files'] as $file) {
         if (!isset($file['name']) || !isset($file['content'])) {
             http_response_code(400);
@@ -72,11 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        // Ensure filename does not navigate up the directory structure
         $filename = basename($file['name']);
         $filePath = __DIR__ . '/' . $filename;
 
-        // Save file content
         if (file_put_contents($filePath, $file['content']) === false) {
             http_response_code(500);
             echo json_encode(['error' => 'Failed to save file: ' . $filename]);

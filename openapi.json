@@ -1,0 +1,280 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "File Upload API",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://chatgpt.products.management"
+        }
+    ],
+    "paths": {
+        "/files.php": {
+            "post": {
+                "operationId": "uploadFiles",
+                "summary": "Upload files to the server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "files": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "content": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "content"
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Files saved successfully"
+                    },
+                    "400": {
+                        "description": "Invalid input format"
+                    },
+                    "403": {
+                        "description": "Forbidden: Invalid API key"
+                    }
+                }
+            },
+            "get": {
+                "operationId": "listFilesAndFolders",
+                "summary": "Display all files and folders from the specified folder",
+                "parameters": [
+                    {
+                        "name": "folder",
+                        "in": "query",
+                        "required": true,
+                        "description": "The path of the folder to display contents of",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Folder contents retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "folder": {
+                                            "type": "string"
+                                        },
+                                        "contents": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "file",
+                                                            "folder"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "name",
+                                                    "type"
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing or invalid folder parameter"
+                    },
+                    "403": {
+                        "description": "Forbidden: Invalid API key"
+                    },
+                    "404": {
+                        "description": "Folder not found"
+                    }
+                }
+            }
+        },
+        "/file.php": {
+            "get": {
+                "operationId": "getFileContentFromFilePhp",
+                "summary": "Retrieve content of a specific file from file.php endpoint",
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "query",
+                        "required": true,
+                        "description": "The name of the file to retrieve",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File content retrieved successfully from file.php",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "file": {
+                                            "type": "string"
+                                        },
+                                        "content": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing file parameter"
+                    },
+                    "403": {
+                        "description": "Forbidden: Invalid API key"
+                    },
+                    "404": {
+                        "description": "File not found"
+                    }
+                }
+            }
+        },
+        "/execute-command.php": {
+            "post": {
+                "operationId": "executeCommand",
+                "summary": "Execute a command on the server",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "command": {
+                                        "type": "string",
+                                        "description": "The command to execute on the server"
+                                    }
+                                },
+                                "required": [
+                                    "command"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Command executed successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "output": {
+                                            "type": "string",
+                                            "description": "The output of the executed command"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid command or input format"
+                    },
+                    "403": {
+                        "description": "Forbidden: Invalid API key"
+                    },
+                    "500": {
+                        "description": "Server error executing command"
+                    }
+                }
+            }
+        },
+        "/searchFiles.php": {
+            "post": {
+                "operationId": "searchFiles",
+                "summary": "Search for files in a specified directory",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "directory": {
+                                        "type": "string",
+                                        "description": "Path of the directory to search"
+                                    },
+                                    "pattern": {
+                                        "type": "string",
+                                        "description": "Filename pattern to match (e.g., '*.txt')",
+                                        "default": "*"
+                                    },
+                                    "extension": {
+                                        "type": "string",
+                                        "description": "File extension to filter results (e.g., 'txt')"
+                                    }
+                                },
+                                "required": [
+                                    "directory"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful response with matching files",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "directory": { "type": "string" },
+                                        "pattern": { "type": "string" },
+                                        "extension": { "type": "string" },
+                                        "matching_files": {
+                                            "type": "array",
+                                            "items": { "type": "string" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": { "description": "Bad request due to invalid input" },
+                    "404": { "description": "Directory not found" },
+                    "405": { "description": "Method not allowed" }
+                }
+            }
+        }
+    }
+}
