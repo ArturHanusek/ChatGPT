@@ -3,7 +3,7 @@
 header("Content-Type: application/json");
 
 // Load API key from .env file
-$dotenvPath = __DIR__ . '/../.env';
+$dotenvPath = __DIR__ . '.env';
 if (!file_exists($dotenvPath)) {
     http_response_code(500);
     echo json_encode(['error' => 'Server configuration error: Missing .env file.']);
